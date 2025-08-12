@@ -100,10 +100,15 @@ Your web browser will automatically open to the application's interface.
 
 ## ⚙️ How It Works
 
-- **`main.py`:** This is the main file that contains all the application logic.
+- **`main.py`:** The original main file for the Gemini-based chatbot. Contains all application logic for the Google Gemini API version.
+- **`main_telkom.py`:** An alternative main file that uses the Telkom AI API instead of Google Gemini. This version is tailored for Telkom AI integration and includes:
+  - Support for the Telkom AI API via the `openai` compatible client and `TELKOM_API_KEY` in your `.env` file.
+  - The same Streamlit-based UI, role selection, and PDF knowledge base features as the Gemini version.
+  - All role-play, knowledge base, and conversation memory features, but powered by Telkom AI.
+  - Clear error handling and connection status for the Telkom API in the sidebar.
 - **Streamlit:** Renders the web interface. All UI elements like the sidebar, chat messages, and file uploader are created using Streamlit functions (`st.sidebar`, `st.chat_message`, etc.).
 - **Session State (`st.session_state`):** This crucial Streamlit feature is used to store the conversation history and the knowledge base text, so the data persists between user interactions.
-- **Role-Playing:** A Python dictionary (`ROLES`) stores different system prompts. When a user selects a role, the corresponding system prompt is fed to the Gemini model to guide its behavior.
+- **Role-Playing:** A Python dictionary (`ROLES`) stores different system prompts. When a user selects a role, the corresponding system prompt is fed to the AI model to guide its behavior.
 - **Knowledge Base (RAG):** When a PDF is uploaded, the `PyPDF2` library extracts its text. This text is appended to the system prompt, instructing the AI to use this information as a primary source when answering questions.
 
 ## 🙏 Acknowledgments
