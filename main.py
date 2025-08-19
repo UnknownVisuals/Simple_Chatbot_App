@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import PyPDF2
 import tempfile
+import pandas as pd
 
 # Muat variabel lingkungan dari file .env (untuk menyimpan kunci API)
 load_dotenv()
@@ -78,6 +79,21 @@ def extract_text_from_pdf(pdf_file):
         return None
 
 
+# Fungsi untuk mengekstrak teks dari file Excel yang diunggah
+def extract_text_from_excel(excel_file, as_dataframe=False):
+    try:
+        df = pd.read_excel(excel_file, engine="openpyxl")
+        if as_dataframe:
+            return df
+        text = ""
+        for index, row in df.iterrows():
+            text += " ".join(str(cell) for cell in row) + "\n"
+        return text
+    except Exception as e:
+        st.error(f"Error extracting Excel text: {str(e)}")
+        return None
+
+
 # --- Bagian Sidebar untuk Konfigurasi ---
 with st.sidebar:
     st.header("⚙️ Configuration")
@@ -88,10 +104,12 @@ with st.sidebar:
         "Choose assistant role:", options=list(ROLES.keys()), index=0
     )
 
-    # Bagian untuk mengunggah file PDF sebagai basis pengetahuan (knowledge base)
+    # Bagian untuk mengunggah file PDF dan Excel sebagai basis pengetahuan (knowledge base)
     st.subheader("📚 Knowledge Base")
     uploaded_files = st.file_uploader(
-        "Upload PDF documents:", type=["pdf"], accept_multiple_files=True
+        "Upload PDF or Excel documents:",
+        type=["pdf", "xlsx"],
+        accept_multiple_files=True,
     )
 
     # Proses file yang diunggah
@@ -100,14 +118,44 @@ with st.sidebar:
         if "knowledge_base" not in st.session_state:
             st.session_state.knowledge_base = ""
 
-        # Ekstrak teks dari file-file yang baru diunggah
+        # Ekstrak teks dari semua file yang diunggah dalam satu loop
         new_knowledge = ""
-        for pdf_file in uploaded_files:
-            st.write(f"📄 Processing: {pdf_file.name}")
-            pdf_text = extract_text_from_pdf(pdf_file)
-            if pdf_text:
-                # Tambahkan teks dari PDF ke variabel dengan format penanda
-                new_knowledge += f"\n\n=== DOCUMENT: {pdf_file.name} ===\n{pdf_text}"
+
+        for uploaded_file in uploaded_files:
+            st.write(f"📄 Processing: {uploaded_file.name}")
+            file_type = uploaded_file.type
+
+            if file_type == "application/pdf":
+                # Proses file PDF
+                pdf_text = extract_text_from_pdf(uploaded_file)
+                if pdf_text:
+                    new_knowledge += (
+                        f"\n\n=== DOCUMENT: {uploaded_file.name} ===\n{pdf_text}"
+                    )
+
+            elif file_type in [
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-excel",
+            ]:
+                # Proses file Excel
+                excel_df = extract_text_from_excel(uploaded_file, as_dataframe=True)
+                if excel_df is not None:
+                    # Store DataFrame in session state for later use
+                    if "excel_dataframes" not in st.session_state:
+                        st.session_state.excel_dataframes = []
+                    st.session_state.excel_dataframes.append(
+                        {"name": uploaded_file.name, "df": excel_df}
+                    )
+                    # Convert DataFrame to markdown table for knowledge base
+                    try:
+                        import tabulate
+
+                        excel_text = tabulate.tabulate(
+                            excel_df, headers="keys", tablefmt="github", showindex=False
+                        )
+                    except ImportError:
+                        excel_text = excel_df.to_markdown(index=False)
+                    new_knowledge += f"\n\n=== DOCUMENT: {uploaded_file.name} (Excel Table) ===\n{excel_text}"
 
         # Perbarui basis pengetahuan jika ada konten baru dan belum ada sebelumnya
         if new_knowledge and new_knowledge not in st.session_state.knowledge_base:
@@ -129,7 +177,7 @@ with st.sidebar:
 
 # Inisialisasi model Gemini jika belum ada
 if "gemini_model" not in st.session_state:
-    st.session_state["gemini_model"] = "gemini-1.5-flash"
+    st.session_state["gemini_model"] = "gemini-2.5-flash"
 
 # Inisialisasi riwayat pesan jika belum ada
 if "messages" not in st.session_state:
@@ -237,10 +285,10 @@ with st.expander("ℹ️ How to use"):
     - The conversation resets when you change roles
 
     ### Knowledge Base:
-    - Upload PDF documents in the sidebar
+    - Upload PDF or Excel documents in the sidebar
     - Ask questions about the content in your documents
     - The AI will reference the uploaded documents when answering
-    - You can upload multiple PDFs
+    - You can upload multiple PDFs and Excel files
 
     ### Tips:
     - Be specific in your questions for better answers
